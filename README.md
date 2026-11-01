@@ -3,7 +3,7 @@
 A Progressive Web App that tracks movies, series, books, games and other media.
 
 - Define your own categories, each with a color. The first start adds Movies, Series, Books and Games.
-- Add an item with a title, a category, a start day, an optional end day, an optional rating from 1 to 5 stars and an optional note.
+- Add an item with a title, a category, a start day, an optional end day, an optional rating from 1 to 10 and an optional note.
 - The list shows the items in progress first, then the finished items by year, newest first.
 - Tap the check button of an item in progress to finish it today.
 - Show one category or all, and search the titles and notes.

@@ -264,7 +264,7 @@ function ItemRow({ item, category, onFinish, ...swipe }: ItemRowProps) {
       </button>
       {item.end ? (
         item.rating ? (
-          <span className="rating" aria-label={`${item.rating} of ${MAX_RATING} stars`}>
+          <span className="rating" aria-label={`Rating ${item.rating} of ${MAX_RATING}`}>
             <Icon name="star" size={16} filled />
             {item.rating}
           </span>
@@ -408,22 +408,27 @@ function ItemForm({ item, categories, defaultCategory, onSave, onCancel, onDelet
         </label>
       </div>
       {end && end < start && <p className="error">The end is before the start.</p>}
-      <div className="stars" role="radiogroup" aria-label="Rating">
-        <span>Rating</span>
-        {Array.from({ length: MAX_RATING }, (_, i) => i + 1).map((n) => (
-          <button
-            key={n}
-            type="button"
-            role="radio"
-            aria-checked={n === rating}
-            aria-label={`${n} of ${MAX_RATING} stars`}
-            className={n <= rating ? 'on' : undefined}
-            // A tap on the current rating removes the rating.
-            onClick={() => setRating(n === rating ? 0 : n)}
-          >
-            <Icon name="star" size={28} filled={n <= rating} />
-          </button>
-        ))}
+      <div className="rating-field">
+        <span className="rating-label">
+          Rating
+          <strong>{rating ? `${rating} / ${MAX_RATING}` : 'None'}</strong>
+        </span>
+        <div className="scale" role="radiogroup" aria-label="Rating">
+          {Array.from({ length: MAX_RATING }, (_, i) => i + 1).map((n) => (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={n === rating}
+              aria-label={`${n} of ${MAX_RATING}`}
+              className={n <= rating ? 'on' : undefined}
+              // A tap on the current rating removes the rating.
+              onClick={() => setRating(n === rating ? 0 : n)}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
       </div>
       <label>
         Note

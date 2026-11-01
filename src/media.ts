@@ -16,7 +16,7 @@ export interface Item {
   start: Day;
   // The day on which the user finished the item. Missing while in progress.
   end?: Day;
-  // From 1 to 5 stars. Missing when not rated.
+  // From 1 to MAX_RATING points. Missing when not rated.
   rating?: number;
   note?: string;
 }
@@ -44,7 +44,7 @@ export const COLORS = [
   '#6d4c41',
 ];
 
-export const MAX_RATING = 5;
+export const MAX_RATING = 10;
 
 const DEFAULT_CATEGORIES = ['Movies', 'Series', 'Books', 'Games'];
 

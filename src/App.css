@@ -310,8 +310,16 @@ ul {
 
 .dates {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
+}
+
+/* On a narrow screen, the start and the end are on separate lines, so that
+   each date field has the full width. */
+@media (max-width: 480px) {
+  .dates {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .dates input {
@@ -340,29 +348,44 @@ ul {
   font-size: 15px;
 }
 
-.stars {
+.rating-field {
+  display: grid;
+  gap: 6px;
+}
+
+.rating-label {
   display: flex;
-  align-items: center;
-  gap: 2px;
+  justify-content: space-between;
   color: var(--muted);
   font-size: 14px;
 }
 
-.stars span {
-  margin-right: auto;
+.rating-label strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
-.stars button {
-  width: 44px;
+/* The rating scale: one button for each point. The buttons up to the rating
+   use the star color, so that the scale reads like a bar. */
+.scale {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+}
+
+.scale button {
   height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
+  background: var(--control);
+  font-variant-numeric: tabular-nums;
 }
 
-.stars button.on {
-  color: var(--star);
+.scale button.on {
+  background: var(--star);
+  color: #101418;
+}
+
+.scale button[aria-checked='true'] {
+  font-weight: 700;
 }
 
 .choices {
