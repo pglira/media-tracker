@@ -405,6 +405,40 @@ ul {
   border-left: 6px solid var(--color);
 }
 
+.category-row {
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+}
+
+.category-row > button:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.choices .handle {
+  flex: none;
+  width: 52px;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  border-left: none;
+  color: var(--muted);
+  /* The handle gets all pointer moves, so that a drag does not scroll the sheet. */
+  touch-action: none;
+  cursor: grab;
+}
+
+.category-row.dragged {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.35);
+}
+
+.category-row.dragged .handle {
+  cursor: grabbing;
+}
+
 .choices small {
   color: var(--muted);
   font-variant-numeric: tabular-nums;

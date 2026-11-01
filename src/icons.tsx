@@ -11,6 +11,7 @@ const PATHS = {
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
   tag: 'M4 4h8l8 8-8 8-8-8zM8 8h.01',
   star: 'M12 3l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2-5.6-3.2-5.6 3.2 1.3-6.2L3 9.5l6.3-.7z',
+  grip: 'M4 8h16M4 12h16M4 16h16',
   backup: 'M4 14v6h16v-6M12 4v11M8 11l4 4 4-4',
   download: 'M12 4v11M7 10l5 5l5-5M4 20h16',
   upload: 'M12 15V4M7 9l5-5l5 5M4 20h16',

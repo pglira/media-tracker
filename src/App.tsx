@@ -1,4 +1,13 @@
-import { type ChangeEvent, type CSSProperties, type ReactNode, useEffect, useState } from 'react';
+import {
+  type ChangeEvent,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { type Backup, exportBackup, readBackup, restoreBackup } from './backup';
 import { Icon, type IconName } from './icons';
 import {
@@ -15,6 +24,7 @@ import {
   inProgress,
   isDataKey,
   loadData,
+  moveCategory,
   nextColor,
   removeCategory,
   removeItem,
@@ -200,7 +210,12 @@ export default function App() {
       )}
 
       {sheet?.kind === 'categories' && (
-        <CategoryList data={data} onSelect={(id) => setSheet({ kind: 'category', id })} onClose={close} />
+        <CategoryList
+          data={data}
+          onSelect={(id) => setSheet({ kind: 'category', id })}
+          onMove={(from, to) => setData((d) => moveCategory(d, from, to))}
+          onClose={close}
+        />
       )}
 
       {sheet?.kind === 'category' && (
@@ -447,32 +462,97 @@ function ItemForm({ item, categories, defaultCategory, onSave, onCancel, onDelet
   );
 }
 
-// The categories with the number of items of each. A tap opens the category
-// form.
-function CategoryList({
-  data,
-  onSelect,
-  onClose,
-}: {
+interface CategoryListProps {
   data: Data;
   onSelect: (id: string | null) => void;
+  onMove: (from: number, to: number) => void;
   onClose: () => void;
-}) {
+}
+
+// The categories with the number of items of each. A tap opens the category
+// form. Drag the handle of a category up or down to move it; the arrow keys
+// move the category of the focused handle.
+function CategoryList({ data, onSelect, onMove, onClose }: CategoryListProps) {
+  const categories = data.categories;
+  // The dragged category, the pointer position at which its row is at rest,
+  // and the current pointer position.
+  const [drag, setDrag] = useState<{ id: string; origin: number; y: number } | null>(null);
+  const rows = useRef<HTMLDivElement>(null);
+
+  // The distance between the tops of two rows in pixels.
+  const step = () => {
+    const list = rows.current;
+    const row = list?.firstElementChild as HTMLElement | null;
+    if (!list || !row) return 1;
+    return row.offsetHeight + parseFloat(getComputedStyle(list).rowGap || '0');
+  };
+
+  const onPointerMove = (e: PointerEvent) => {
+    if (!drag) return;
+    const index = categories.findIndex((c) => c.id === drag.id);
+    const s = step();
+    let origin = drag.origin;
+    let to = index;
+    while (e.clientY - origin > s / 2 && to < categories.length - 1) {
+      origin += s;
+      to++;
+    }
+    while (e.clientY - origin < -s / 2 && to > 0) {
+      origin -= s;
+      to--;
+    }
+    if (to !== index) onMove(index, to);
+    setDrag({ id: drag.id, origin, y: e.clientY });
+  };
+
+  const onKeyDown = (e: ReactKeyboardEvent, index: number) => {
+    const to = e.key === 'ArrowUp' ? index - 1 : e.key === 'ArrowDown' ? index + 1 : -1;
+    if (to < 0 || to >= categories.length) return;
+    e.preventDefault();
+    onMove(index, to);
+  };
+
   return (
     <SheetFrame title="Categories" onCancel={onClose} onSubmit={() => onSelect(null)}>
-      <div className="choices">
-        {data.categories.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            style={{ '--color': c.color } as CSSProperties}
-            onClick={() => onSelect(c.id)}
-          >
-            <span>{c.name}</span>
-            <small>{data.items.filter((i) => i.categoryId === c.id).length}</small>
-          </button>
-        ))}
-        {data.categories.length === 0 && <p className="hint">No categories. Tap New category to add one.</p>}
+      <div className="choices" ref={rows}>
+        {categories.map((c, index) => {
+          const dragged = drag?.id === c.id;
+          return (
+            <div
+              key={c.id}
+              className={dragged ? 'category-row dragged' : 'category-row'}
+              style={{ transform: dragged ? `translateY(${drag.y - drag.origin}px)` : undefined }}
+            >
+              <button
+                type="button"
+                style={{ '--color': c.color } as CSSProperties}
+                onClick={() => onSelect(c.id)}
+              >
+                <span>{c.name}</span>
+                <small>{data.items.filter((i) => i.categoryId === c.id).length}</small>
+              </button>
+              {categories.length > 1 && (
+                <button
+                  type="button"
+                  className="handle"
+                  aria-label={`Move ${c.name}`}
+                  title="Drag to move"
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    setDrag({ id: c.id, origin: e.clientY, y: e.clientY });
+                  }}
+                  onPointerMove={onPointerMove}
+                  onPointerUp={() => setDrag(null)}
+                  onPointerCancel={() => setDrag(null)}
+                  onKeyDown={(e) => onKeyDown(e, index)}
+                >
+                  <Icon name="grip" size={24} />
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {categories.length === 0 && <p className="hint">No categories. Tap New category to add one.</p>}
       </div>
       <div className="buttons">
         <button type="button" onClick={onClose}>

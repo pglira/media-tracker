@@ -131,6 +131,15 @@ export function saveCategory(data: Data, id: string | null, name: string, color:
   return { ...data, categories };
 }
 
+// Move the category at index `from` to index `to`. The order of the
+// categories is the order of the filter and of the category choices.
+export function moveCategory(data: Data, from: number, to: number): Data {
+  const categories = [...data.categories];
+  const [category] = categories.splice(from, 1);
+  categories.splice(to, 0, category);
+  return { ...data, categories };
+}
+
 // Remove a category and all its items.
 export function removeCategory(data: Data, id: string): Data {
   return {
