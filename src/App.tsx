@@ -496,10 +496,14 @@ interface CategoryFormProps {
   onDelete?: () => void;
 }
 
-// Add or edit a category. Deleting a category also deletes its items.
+// Add or edit a category. Deleting a category also deletes its items. For a
+// category with items, Delete first shows a warning with the number of items,
+// and a separate button in the warning deletes the category.
 function CategoryForm({ category, count, onSave, onCancel, onDelete, ...props }: CategoryFormProps) {
   const [name, setName] = useState(category?.name ?? '');
   const [color, setColor] = useState(props.color);
+  const [warning, setWarning] = useState(false);
+  const items = `${count} item${count === 1 ? '' : 's'}`;
 
   return (
     <SheetFrame
@@ -530,13 +534,34 @@ function CategoryForm({ category, count, onSave, onCancel, onDelete, ...props }:
           />
         ))}
       </div>
+      {warning && onDelete && (
+        <div className="warning" role="alert">
+          <p>
+            <strong>
+              "{category?.name}" contains {items}.
+            </strong>{' '}
+            Deleting the category also deletes {count === 1 ? 'this item' : `all ${items}`}. You cannot undo
+            this.
+          </p>
+          <div className="warning-buttons">
+            <button type="button" onClick={() => setWarning(false)}>
+              Keep
+            </button>
+            <button type="button" className="danger" onClick={onDelete}>
+              Delete all
+            </button>
+          </div>
+        </div>
+      )}
       <div className="buttons">
-        {onDelete && (
-          <DeleteButton
-            label={count ? `Tap to delete with ${count} item${count === 1 ? '' : 's'}` : 'Tap to delete'}
-            onDelete={onDelete}
-          />
-        )}
+        {onDelete &&
+          (count ? (
+            <button type="button" className="delete" onClick={() => setWarning(true)} disabled={warning}>
+              Delete
+            </button>
+          ) : (
+            <DeleteButton label="Tap to delete" onDelete={onDelete} />
+          ))}
         <button type="button" onClick={onCancel}>
           Cancel
         </button>
