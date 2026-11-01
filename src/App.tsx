@@ -15,17 +15,20 @@ import {
   COLORS,
   type Category,
   type Data,
+  type Day,
   type Item,
   type ItemFields,
+  type Status,
   MAX_RATING,
   duration,
   finishItem,
-  finishedByYear,
+  endedByYear,
   inProgress,
   isDataKey,
   loadData,
   moveCategory,
   nextColor,
+  ranking,
   removeCategory,
   removeItem,
   saveCategory,
@@ -53,12 +56,20 @@ type Sheet =
   | { kind: 'backup' }
   | null;
 
+const STATUSES: (Status | null)[] = [null, 'completed', 'aborted'];
+const STATUS_LABELS: Record<Status, string> = { completed: 'Completed', aborted: 'Aborted' };
+
+// The list shows the items by state and year; the ranking shows the items by
+// rating.
+type View = 'list' | 'ranking';
+
 export default function App() {
   const [data, setData] = useState<Data>(loadData);
   const [sheet, setSheet] = useState<Sheet>(null);
   // The id of the shown category, or null for all categories.
   const [filter, setFilter] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [view, setView] = useState<View>('list');
   // The id of the item whose row shows the swipe actions.
   const [swiped, setSwiped] = useState<string | null>(null);
   const [theme, nextTheme] = useTheme();
@@ -72,17 +83,23 @@ export default function App() {
     (i) =>
       (filter === null || i.categoryId === filter) &&
       category(i.categoryId) &&
-      (!text || i.title.toLowerCase().includes(text) || i.note?.toLowerCase().includes(text)),
+      (!text ||
+        i.title.toLowerCase().includes(text) ||
+        String(i.year ?? '').includes(text) ||
+        i.note?.toLowerCase().includes(text)),
   );
   const current = inProgress(shown);
-  const years = finishedByYear(shown);
+  const years = endedByYear(shown);
+  const ranked = ranking(shown);
+  const unrated = shown.filter((i) => !i.rating).sort((a, b) => a.title.localeCompare(b.title));
   const sheetItem = sheet?.kind === 'item' ? data.items.find((i) => i.id === sheet.id) : undefined;
   const sheetCategory = sheet?.kind === 'category' ? category(sheet.id ?? '') : undefined;
 
-  const row = (item: Item) => (
+  const row = (item: Item, rank?: number) => (
     <ItemRow
       key={item.id}
       item={item}
+      rank={rank}
       category={category(item.categoryId)!}
       open={swiped === item.id}
       onOpen={() => setSwiped(item.id)}
@@ -156,36 +173,76 @@ export default function App() {
       </div>
 
       {data.items.length > 0 && (
-        <input
-          className="search"
-          type="search"
-          placeholder="Search"
-          aria-label="Search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="toolbar">
+          <input
+            className="search"
+            type="search"
+            placeholder="Search"
+            aria-label="Search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="views" role="radiogroup" aria-label="View">
+            {(
+              [
+                ['list', 'list', 'List'],
+                ['ranking', 'rank', 'Ranking'],
+              ] as const
+            ).map(([v, icon, label]) => (
+              <button
+                key={v}
+                role="radio"
+                aria-checked={view === v}
+                aria-label={label}
+                title={label}
+                onClick={() => setView(v)}
+              >
+                <Icon name={icon} />
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {data.items.length === 0 && <p className="empty">No items. Tap + to add a movie, a book or a game.</p>}
       {data.items.length > 0 && shown.length === 0 && <p className="empty">No items match.</p>}
 
-      {current.length > 0 && (
+      {view === 'ranking' && ranked.length > 0 && (
         <section>
           <h2 className="group">
-            In progress <span>{current.length}</span>
+            Ranking {filter === null ? '' : category(filter)?.name} <span>{ranked.length}</span>
           </h2>
-          <ul>{current.map(row)}</ul>
+          <ul>{ranked.map(([rank, item]) => row(item, rank))}</ul>
         </section>
       )}
 
-      {years.map(([year, items]) => (
-        <section key={year}>
+      {view === 'ranking' && unrated.length > 0 && (
+        <section>
           <h2 className="group">
-            Finished {year} <span>{items.length}</span>
+            Not rated <span>{unrated.length}</span>
           </h2>
-          <ul>{items.map(row)}</ul>
+          <ul>{unrated.map((item) => row(item))}</ul>
         </section>
-      ))}
+      )}
+
+      {view === 'list' && current.length > 0 && (
+        <section>
+          <h2 className="group">
+            Ongoing <span>{current.length}</span>
+          </h2>
+          <ul>{current.map((item) => row(item))}</ul>
+        </section>
+      )}
+
+      {view === 'list' &&
+        years.map(([year, items]) => (
+          <section key={year}>
+            <h2 className="group">
+              {year || 'No end day'} <span>{items.length}</span>
+            </h2>
+            <ul>{items.map((item) => row(item))}</ul>
+          </section>
+        ))}
 
       {sheet?.kind === 'item' && (
         <ItemForm
@@ -246,17 +303,23 @@ export default function App() {
   );
 }
 
-// The dates of an item: the start and the end with the number of days, or
-// the start only while the item is in progress.
-function dates(item: Item): string {
-  if (!item.end) return `Since ${shortDate(item.start)}`;
-  const days = duration(item.start, item.end);
-  if (days === 1) return shortDate(item.end);
-  return `${shortDate(item.start)} – ${shortDate(item.end)} · ${days} days`;
+// The dates of an item: the start and the end, with the number of days. An
+// ongoing item shows the start only. Empty for a
+// completed or aborted item without dates.
+function dates({ start, end, status }: Item): string {
+  if (!status) return start ? `Since ${shortDate(start)}` : 'Ongoing';
+  if (!start) return end ? shortDate(end) : '';
+  if (!end) return `From ${shortDate(start)}`;
+  if (start === end) return shortDate(end);
+  const days = duration(start, end);
+  if (days === 1) return shortDate(end);
+  return `${shortDate(start)} – ${shortDate(end)} · ${days} days`;
 }
 
 interface ItemRowProps {
   item: Item;
+  // The place of the item in the ranking.
+  rank?: number;
   category: Category;
   open: boolean;
   onOpen: () => void;
@@ -266,30 +329,43 @@ interface ItemRowProps {
   onFinish: () => void;
 }
 
-// One item in the list. A tap opens the item form. An item in progress has a
-// button that finishes it today; a finished item shows its rating.
-function ItemRow({ item, category, onFinish, ...swipe }: ItemRowProps) {
+// One item in the list. A tap opens the item form. The row shows the title
+// with the year of the work, the rating, and the state: a completed item has
+// a filled check mark, an aborted item has a filled cross, and an ongoing item
+// has a button that completes it today.
+// In the ranking, the row starts with the place of the item.
+function ItemRow({ item, rank, category, onFinish, ...swipe }: ItemRowProps) {
   return (
     <SwipeRow className="item" style={{ '--color': category.color } as CSSProperties} {...swipe}>
+      {rank !== undefined && <span className="rank">{rank}</span>}
       <button className="info" onClick={swipe.onEdit}>
-        <span className="title">{item.title}</span>
-        <span className="meta">
-          {category.name} · {dates(item)}
+        <span className="title">
+          {item.title}
+          {item.year && <span className="year"> {item.year}</span>}
         </span>
+        <span className="meta">{[category.name, dates(item)].filter(Boolean).join(' · ')}</span>
       </button>
-      {item.end ? (
-        item.rating ? (
-          <span className="rating" aria-label={`Rating ${item.rating} of ${MAX_RATING}`}>
-            <Icon name="star" size={16} filled />
-            {item.rating}
-          </span>
-        ) : null
+      {item.rating && (
+        <span className="rating" aria-label={`Rating ${item.rating} of ${MAX_RATING}`}>
+          <Icon name="star" size={16} filled />
+          {item.rating}
+        </span>
+      )}
+      {item.status ? (
+        <span
+          className={`state ${item.status}`}
+          role="img"
+          aria-label={STATUS_LABELS[item.status]}
+          title={STATUS_LABELS[item.status]}
+        >
+          <Icon name={item.status === 'completed' ? 'check' : 'close'} />
+        </span>
       ) : (
         <button
           className="finish"
           onClick={onFinish}
-          aria-label={`Finish ${item.title} today`}
-          title="Finish today"
+          aria-label={`Complete ${item.title} today`}
+          title="Complete today"
         >
           <Icon name="check" />
         </button>
@@ -346,20 +422,58 @@ interface ItemFormProps {
   onDelete?: () => void;
 }
 
-// Add or edit an item: the title, the category, the start day, the optional
-// end day, the optional rating and an optional note.
+// An optional day: a date field with a button that removes the day, or a
+// button that sets the day to today.
+function DayField({ label, value, onChange }: { label: string; value: Day; onChange: (v: Day) => void }) {
+  return (
+    <label>
+      {label}
+      {value ? (
+        <span className="day">
+          <input type="date" value={value} onChange={(e) => onChange(e.target.value)} />
+          <button
+            type="button"
+            className="clear"
+            onClick={() => onChange('')}
+            aria-label={`Remove the ${label.toLowerCase()} day`}
+            title={`Remove the ${label.toLowerCase()} day`}
+          >
+            <Icon name="close" size={18} />
+          </button>
+        </span>
+      ) : (
+        <button type="button" className="today" onClick={() => onChange(today())}>
+          Set to today
+        </button>
+      )}
+    </label>
+  );
+}
+
+// Add or edit an item: the title, the optional year of the work, the
+// category, the optional start day, the completed state with the optional end
+// day, the optional rating and an optional note.
 function ItemForm({ item, categories, defaultCategory, onSave, onCancel, onDelete }: ItemFormProps) {
   const [title, setTitle] = useState(item?.title ?? '');
+  const [year, setYear] = useState(item?.year ? String(item.year) : '');
   const [categoryId, setCategoryId] = useState(item?.categoryId ?? defaultCategory);
-  const [start, setStart] = useState(item?.start ?? today());
+  const [start, setStart] = useState(item ? (item.start ?? '') : today());
+  const [status, setStatus] = useState<Status | null>(item?.status ?? null);
   const [end, setEnd] = useState(item?.end ?? '');
   const [rating, setRating] = useState(item?.rating ?? 0);
   const [note, setNote] = useState(item?.note ?? '');
+  const reversed = !!status && !!start && !!end && end < start;
   const valid =
     title.trim() !== '' &&
     categories.some((c) => c.id === categoryId) &&
-    start !== '' &&
-    (!end || end >= start);
+    (!year || /^\d{4}$/.test(year)) &&
+    !reversed;
+
+  const selectStatus = (next: Status | null) => {
+    // A new end is today, or the start when the start is after today.
+    if (next && !status && !end) setEnd(start && today() < start ? start : today());
+    setStatus(next);
+  };
 
   return (
     <SheetFrame
@@ -370,17 +484,31 @@ function ItemForm({ item, categories, defaultCategory, onSave, onCancel, onDelet
         onSave({
           title: title.trim(),
           categoryId,
-          start,
+          year: Number(year) || undefined,
+          start: start || undefined,
+          status: status ?? undefined,
           end: end || undefined,
           rating: rating || undefined,
           note: note.trim() || undefined,
         })
       }
     >
-      <label>
-        Title
-        <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!item} />
-      </label>
+      <div className="title-year">
+        <label>
+          Title
+          <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!item} />
+        </label>
+        <label>
+          Year
+          <input
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="YYYY"
+            value={year}
+            onChange={(e) => setYear(e.target.value.replace(/\D/g, ''))}
+          />
+        </label>
+      </div>
       <div className="chips" role="radiogroup" aria-label="Category">
         {categories.map((c) => (
           <button
@@ -395,34 +523,24 @@ function ItemForm({ item, categories, defaultCategory, onSave, onCancel, onDelet
           </button>
         ))}
       </div>
-      <div className="dates">
-        <label>
-          Start
-          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
-        </label>
-        <label>
-          End
-          {end ? (
-            <span className="end">
-              <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} />
-              <button
-                type="button"
-                className="clear"
-                onClick={() => setEnd('')}
-                aria-label="Remove the end day"
-                title="Remove the end day"
-              >
-                <Icon name="close" size={18} />
-              </button>
-            </span>
-          ) : (
-            <button type="button" className="today" onClick={() => setEnd(today() < start ? start : today())}>
-              Finish today
-            </button>
-          )}
-        </label>
+      <div className="segments" role="radiogroup" aria-label="Status">
+        {STATUSES.map((st) => (
+          <button
+            key={st ?? 'ongoing'}
+            type="button"
+            role="radio"
+            aria-checked={status === st}
+            onClick={() => selectStatus(st)}
+          >
+            {st ? STATUS_LABELS[st] : 'Ongoing'}
+          </button>
+        ))}
       </div>
-      {end && end < start && <p className="error">The end is before the start.</p>}
+      <div className="dates">
+        <DayField label="Start" value={start} onChange={setStart} />
+        {status && <DayField label="End" value={end} onChange={setEnd} />}
+      </div>
+      {reversed && <p className="error">The end is before the start.</p>}
       <div className="rating-field">
         <span className="rating-label">
           Rating

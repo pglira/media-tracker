@@ -12,6 +12,8 @@ const PATHS = {
   tag: 'M4 4h8l8 8-8 8-8-8zM8 8h.01',
   star: 'M12 3l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2-5.6-3.2-5.6 3.2 1.3-6.2L3 9.5l6.3-.7z',
   grip: 'M4 8h16M4 12h16M4 16h16',
+  list: 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01',
+  rank: 'M3 20h18M5 20v-7h4v7M10 20V5h4v15M15 20v-10h4v10',
   backup: 'M4 14v6h16v-6M12 4v11M8 11l4 4 4-4',
   download: 'M12 4v11M7 10l5 5l5-5M4 20h16',
   upload: 'M12 15V4M7 9l5-5l5 5M4 20h16',

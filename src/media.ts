@@ -13,13 +13,22 @@ export interface Item {
   id: string;
   categoryId: string;
   title: string;
-  start: Day;
-  // The day on which the user finished the item. Missing while in progress.
+  // The year of the work, for example the release year of a movie.
+  year?: number;
+  // The day on which the user started the item. Missing when not known.
+  start?: Day;
+  // Missing while the item is ongoing.
+  status?: Status;
+  // The day on which the user completed or aborted the item. Missing while
+  // the item is ongoing, or when not known.
   end?: Day;
   // From 1 to MAX_RATING points. Missing when not rated.
   rating?: number;
   note?: string;
 }
+
+// The state of an item that has ended. An item without a status is ongoing.
+export type Status = 'completed' | 'aborted';
 
 export interface Data {
   categories: Category[];
@@ -63,7 +72,11 @@ export function loadData(): Data {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return initialData();
     const data = JSON.parse(raw) as Partial<Data>;
-    return { categories: data.categories ?? [], items: data.items ?? [] };
+    // An item with an end day and without a status is completed.
+    const items = (data.items ?? []).map((i) =>
+      i.end && !i.status ? { ...i, status: 'completed' as const } : i,
+    );
+    return { categories: data.categories ?? [], items };
   } catch {
     return initialData();
   }
@@ -105,7 +118,10 @@ export type ItemFields = Omit<Item, 'id'>;
 export function saveItem(data: Data, id: string | null, fields: ItemFields): Data {
   const item: Item = { ...fields, id: id ?? crypto.randomUUID() };
   // Leave out empty optional fields, so that the stored data stays small.
-  if (!item.end) delete item.end;
+  if (!item.year) delete item.year;
+  if (!item.start) delete item.start;
+  if (!item.status) delete item.status;
+  if (!item.status || !item.end) delete item.end;
   if (!item.rating) delete item.rating;
   if (!item.note) delete item.note;
   const items = id ? data.items.map((i) => (i.id === id ? item : i)) : [...data.items, item];
@@ -116,11 +132,14 @@ export function removeItem(data: Data, id: string): Data {
   return { ...data, items: data.items.filter((i) => i.id !== id) };
 }
 
-// Mark an item as finished on the given day.
+// Mark an item as completed on the given day, or on the start day when the
+// start is after the given day.
 export function finishItem(data: Data, id: string, day: Day): Data {
   return {
     ...data,
-    items: data.items.map((i) => (i.id === id ? { ...i, end: day < i.start ? i.start : day } : i)),
+    items: data.items.map((i) =>
+      i.id === id ? { ...i, status: 'completed', end: i.start && day < i.start ? i.start : day } : i,
+    ),
   };
 }
 
@@ -148,25 +167,36 @@ export function removeCategory(data: Data, id: string): Data {
   };
 }
 
-// The items in progress, newest start first.
+// The ongoing items, newest start first. Items without a start come last.
 export function inProgress(items: Item[]): Item[] {
   return items
-    .filter((i) => !i.end)
-    .sort((a, b) => b.start.localeCompare(a.start) || a.title.localeCompare(b.title));
+    .filter((i) => !i.status)
+    .sort((a, b) => (b.start ?? '').localeCompare(a.start ?? '') || a.title.localeCompare(b.title));
 }
 
-// The finished items by the year of the end day, newest year and newest end
-// day first.
-export function finishedByYear(items: Item[]): [string, Item[]][] {
-  const done = items
-    .filter((i) => i.end)
-    .sort((a, b) => b.end!.localeCompare(a.end!) || a.title.localeCompare(b.title));
+// The completed and aborted items by the year of the end, newest year and
+// newest end first. The year is an empty string for the items without an end; these
+// items come last.
+export function endedByYear(items: Item[]): [string, Item[]][] {
+  const ended = items
+    .filter((i) => i.status)
+    .sort((a, b) => (b.end ?? '').localeCompare(a.end ?? '') || a.title.localeCompare(b.title));
   const years = new Map<string, Item[]>();
-  for (const item of done) {
-    const year = item.end!.slice(0, 4);
+  for (const item of ended) {
+    const year = item.end?.slice(0, 4) ?? '';
     years.set(year, [...(years.get(year) ?? []), item]);
   }
   return [...years];
+}
+
+// The rated items with their rank, highest rating first. Items with the same
+// rating have the same rank, and the next rank skips the shared places
+// (1, 1, 3).
+export function ranking(items: Item[]): [number, Item][] {
+  const rated = items
+    .filter((i) => i.rating)
+    .sort((a, b) => b.rating! - a.rating! || a.title.localeCompare(b.title));
+  return rated.map((item) => [rated.findIndex((r) => r.rating === item.rating) + 1, item]);
 }
 
 // A short date: day and month, with the year only when it is not the current

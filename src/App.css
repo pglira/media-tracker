@@ -145,7 +145,45 @@ h1 {
 
 .search {
   background: var(--card);
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
   margin-bottom: 4px;
+}
+
+.views {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+
+.views button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--control);
+  color: var(--muted);
+}
+
+.views button {
+  width: 44px;
+}
+
+.views button[aria-checked='true'] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.rank {
+  flex: none;
+  min-width: 28px;
+  padding-left: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 
 .empty {
@@ -256,12 +294,36 @@ ul {
   color: var(--star);
 }
 
-.finish {
+.year {
+  color: var(--muted);
+  font-size: 16px;
+}
+
+/* The state of an item: an outlined button while ongoing, a filled mark when
+   completed or aborted. All have the same size, so that the rows align. */
+.finish,
+.state {
   flex: none;
   width: 44px;
   height: 44px;
   border: 2px solid var(--color);
   color: var(--color);
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.state.completed {
+  background: var(--color);
+}
+
+.state.aborted {
+  border-color: var(--muted);
+  background: var(--muted);
 }
 
 .backdrop {
@@ -308,6 +370,12 @@ ul {
   gap: 6px;
 }
 
+.title-year {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 8px;
+}
+
 .dates {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -327,7 +395,7 @@ ul {
   height: 46px;
 }
 
-.end {
+.day {
   display: flex;
 }
 
@@ -346,6 +414,24 @@ ul {
   background: var(--control);
   color: var(--text);
   font-size: 15px;
+}
+
+/* A choice of one option from a row of buttons with the same width. */
+.segments {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: 2px;
+}
+
+.segments button {
+  padding: 12px 4px;
+  background: var(--control);
+}
+
+.segments button[aria-checked='true'] {
+  background: var(--accent);
+  color: #fff;
 }
 
 .rating-field {
